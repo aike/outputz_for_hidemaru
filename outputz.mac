@@ -1,0 +1,160 @@
+//
+// outputz.mac - Outputz interface macro for Hidemaru Editor
+//
+// Copyright (C) 2008 aike. All rights reserved.
+// 
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions
+// are met:
+// 
+//   1. Redistributions of source code must retain the above copyright
+//      notice, this list of conditions and the following disclaimer.
+//   2. Redistributions in binary form must reproduce the above copyright
+//      notice, this list of conditions and the following disclaimer in
+//      the documentation and/or other materials provided with the
+//      distribution.
+// 
+// THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS''
+// AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS
+// BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+// CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+// SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR
+// BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+// WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE
+// OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN
+// IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Install:
+// (1) 下の$secret_keyにOutputzから発行された自分の復活の呪文を入力
+// (2) 本ファイルを秀丸インストールフォルダにコピー
+// (3) cURLのWindows版を以下からダウンロードしてパスの通ったフォルダにコピー
+//     http://www.kaoriya.net/#ARCHIVE_CURL
+// (4) 秀丸にマクロを登録
+//　　　「マクロ」→「マクロ登録」→「自動起動」
+//　　　　　「自動起動マクロを有効にする」をチェック
+//　　　　　　　「ファイルを開いた直後」に「outputz.mac」を登録
+//　　　　　　　「保存直前と直後」　　　に「outputz.mac」を登録
+//　　　　　　　「ファイルを閉じる直前」に「outputz.mac」を登録
+//
+// 注．新しいバージョンの秀丸(Ver6.5以上)で実行してください
+//
+// History:
+// 2008-12-06
+//   First version.
+
+$secret_key = "Your Secret Key";
+
+// ================================
+$version = "2008-12-06";
+$ini = "hide_outputz.ini";
+
+// file open event handler
+if (event == 1) {
+	call CountChar;
+	call InitCount(##return);
+}
+
+// file save event handler
+if ((event == 3) && (geteventparam(0) == 1)) {
+	call CountChar;
+	call SaveCount(##return);
+	call CheckClosingFlag;
+	if (##return == 1) {
+		call SendOutputz;
+		call DeleteEntry;
+	}
+}
+
+// file close event handler
+if (event == 7) {
+	if (updated) {
+		call SaveClosingFlag;
+	} else {
+		call SendOutputz;
+		call DeleteEntry;
+	}
+}
+endmacro;
+
+
+//==================================
+CountChar:
+	disabledraw;
+	##ox = x;
+	##oy = y;
+
+	##count = 0;
+	moveto 1,1;
+	while (code != eof) {
+		##count = ##count + 1;
+		right;
+	}
+	moveto ##ox, ##oy;
+	enabledraw;
+	return ##count;
+
+InitCount:
+	writeininum $ini, filename3, "count", ##1;
+	return;
+
+SaveCount:
+	if (leftstr(filetype, 1) != ".") {
+		return;
+	} else {
+		call GetModeName;
+		$$mode = $$return;
+	}
+
+	##count = getininum($ini, filename3, "count");
+	##outputz = getininum($ini, "Outputz", $$mode);
+	if (##1 > ##count) {
+		##outputz = ##outputz + (##1 - ##count);
+		writeininum $ini, "Outputz", $$mode, ##outputz;
+	}
+	writeininum $ini, filename3, "count", ##1;
+	return;
+
+SaveClosingFlag:
+	writeininum $ini, filename3, "closing", 1;
+	return;
+
+CheckClosingFlag:
+	return getininum($ini, filename3, "closing");
+
+DeleteEntry:
+	writeinistr $ini, filename3, 0, 0;
+	return;
+
+SendOutputz:
+	if (leftstr(filetype, 1) != ".") {
+		return;
+	} else {
+		call GetModeName;
+		$$mode = $$return;
+	}
+	##outputz = getininum($ini, "Outputz", $$mode);
+	if (##outputz > 0) {
+		$$url = "http://" + $$mode + ".com/";
+		$$str = "curl -F key=" + $secret_key;
+		$$str = $$str + " -F uri=" + $$url;
+		$$str = $$str + " -F size=" + str(##outputz);
+		$$str = $$str + " http://outputz.com/api/post";
+		$$str = $$str + " >nul";
+		//message $$str;
+		run $$str;
+	}
+	writeinistr $ini, "Outputz", $$mode, 0;
+	return;
+
+GetModeName:
+	$$ext = rightstr(filetype, strlen(filetype) - 1);
+	if ($$ext == "h")   { return "c++-mode"; }
+	if ($$ext == "cpp") { return "c++-mode"; }
+	if ($$ext == "pl")  { return "perl-mode"; }
+	if ($$ext == "rb")  { return "ruby-mode"; }
+	if ($$ext == "scm") { return "scheme-mode"; }
+	if ($$ext == "py")  { return "python-mode"; }
+	if ($$ext == "txt") { return "text-mode"; }
+	return $$ext + "-mode";
