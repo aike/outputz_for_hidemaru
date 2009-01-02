@@ -41,14 +41,20 @@
 // 注．新しいバージョンの秀丸(Ver6.5以上)で実行してください
 //
 // History:
+// 2009-01-02
+//   無視する拡張子を指定可能とした(CheckIgnore)
+//   大きすぎるサイズのファイルを無視するようにした
+//   URL不正になるらしいので"c++-mode"を"cpp-mode"に変更
 // 2008-12-06
 //   First version.
 
 $secret_key = "Your Secret Key";
 
 // ================================
-$version = "2008-12-06";
+$version = "2009-01-02";
 $ini = "hide_outputz.ini";
+// 指定文字数以上のファイルはカウント時間がかかりすぎるため断念する
+#giveup = 100000;
 
 // file open event handler
 if (event == 1) {
@@ -80,8 +86,26 @@ endmacro;
 
 
 //==================================
+CheckIgnore:
+	// 以下に無視する拡張子を指定（ブログの下書きなど二重カウント防止のため）
+	if (filetype == ".blog") return 1;
+	if (filetype == ".tmp")  return 1;
+
+	// "."のついていないファイルタイプ（grep結果など）は無視
+	if (leftstr(filetype, 1) != ".") return 1;
+
+	// サイズが大きすぎるファイルは無視
+	##count = getininum($ini, filename3, "count");
+	if (##count < 0) return 1;
+
+	return 0;
+
 CountChar:
 	disabledraw;
+
+	call CheckIgnore;
+	if (##return == 1) return;
+
 	##ox = x;
 	##oy = y;
 
@@ -89,6 +113,9 @@ CountChar:
 	moveto 1,1;
 	while (code != eof) {
 		##count = ##count + 1;
+		if (##count > #giveup) {
+			return -1;
+		}
 		right;
 	}
 	moveto ##ox, ##oy;
@@ -100,16 +127,14 @@ InitCount:
 	return;
 
 SaveCount:
-	if (leftstr(filetype, 1) != ".") {
-		return;
-	} else {
-		call GetModeName;
-		$$mode = $$return;
-	}
+	call CheckIgnore;
+	if (##return == 1) return;
 
+	call GetModeName;
+	$$mode = $$return;
 	##count = getininum($ini, filename3, "count");
-	##outputz = getininum($ini, "Outputz", $$mode);
 	if (##1 > ##count) {
+		##outputz = getininum($ini, "Outputz", $$mode);
 		##outputz = ##outputz + (##1 - ##count);
 		writeininum $ini, "Outputz", $$mode, ##outputz;
 	}
@@ -117,6 +142,8 @@ SaveCount:
 	return;
 
 SaveClosingFlag:
+	call CheckIgnore;
+	if (##return == 1) return;
 	writeininum $ini, filename3, "closing", 1;
 	return;
 
@@ -128,15 +155,15 @@ DeleteEntry:
 	return;
 
 SendOutputz:
-	if (leftstr(filetype, 1) != ".") {
-		return;
-	} else {
-		call GetModeName;
-		$$mode = $$return;
-	}
+	call CheckIgnore;
+	if (##return == 1) return;
+
+	call GetModeName;
+	$$mode = $$return;
+
 	##outputz = getininum($ini, "Outputz", $$mode);
 	if (##outputz > 0) {
-		$$url = "http://" + $$mode + ".com/";
+		$$url = "http://" + $$mode + ".hidemaru.org/";
 		$$str = "curl -F key=" + $secret_key;
 		$$str = $$str + " -F uri=" + $$url;
 		$$str = $$str + " -F size=" + str(##outputz);
@@ -149,12 +176,16 @@ SendOutputz:
 	return;
 
 GetModeName:
+	// 以下に拡張子に対応するモード名を指定
+	if (filetype == ".h")   return "cpp-mode";
+	if (filetype == ".cpp") return "cpp-mode";
+	if (filetype == ".pl")  return "perl-mode";
+	if (filetype == ".rb")  return "ruby-mode";
+	if (filetype == ".scm") return "scheme-mode";
+	if (filetype == ".py")  return "python-mode";
+	if (filetype == ".")    return "text-mode";
+	if (filetype == ".txt") return "text-mode";
+
+	// いずれでもない場合は 拡張子 + "-mode"
 	$$ext = rightstr(filetype, strlen(filetype) - 1);
-	if ($$ext == "h")   { return "c++-mode"; }
-	if ($$ext == "cpp") { return "c++-mode"; }
-	if ($$ext == "pl")  { return "perl-mode"; }
-	if ($$ext == "rb")  { return "ruby-mode"; }
-	if ($$ext == "scm") { return "scheme-mode"; }
-	if ($$ext == "py")  { return "python-mode"; }
-	if ($$ext == "txt") { return "text-mode"; }
 	return $$ext + "-mode";
