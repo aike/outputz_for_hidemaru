@@ -41,6 +41,8 @@
 // 注．新しいバージョンの秀丸(Ver6.5以上)で実行してください
 //
 // History:
+// 2009-01-05
+//   disabledrawされたままenabledrawされないバグを修正
 // 2009-01-02
 //   無視する拡張子を指定可能とした(CheckIgnore)
 //   大きすぎるサイズのファイルを無視するようにした
@@ -51,7 +53,7 @@
 $secret_key = "Your Secret Key";
 
 // ================================
-$version = "2009-01-02";
+$version = "2009-01-05";
 $ini = "hide_outputz.ini";
 // 指定文字数以上のファイルはカウント時間がかかりすぎるため断念する
 #giveup = 100000;
@@ -103,16 +105,16 @@ CheckIgnore:
 CountChar:
 	call CheckIgnore;
 	if (##return == 1) return;
-
 	disabledraw;
 	##ox = x;
 	##oy = y;
-
 	##count = 0;
 	moveto 1,1;
 	while (code != eof) {
 		##count = ##count + 1;
 		if (##count > #giveup) {
+			moveto ##ox, ##oy;
+			enabledraw;
 			return -1;
 		}
 		right;
@@ -128,7 +130,6 @@ InitCount:
 SaveCount:
 	call CheckIgnore;
 	if (##return == 1) return;
-
 	call GetModeName;
 	$$mode = $$return;
 	##count = getininum($ini, filename3, "count");
@@ -156,10 +157,8 @@ DeleteEntry:
 SendOutputz:
 	call CheckIgnore;
 	if (##return == 1) return;
-
 	call GetModeName;
 	$$mode = $$return;
-
 	##outputz = getininum($ini, "Outputz", $$mode);
 	if (##outputz > 0) {
 		$$url = "http://" + $$mode + ".hidemaru.org/";
