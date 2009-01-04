@@ -101,11 +101,10 @@ CheckIgnore:
 	return 0;
 
 CountChar:
-	disabledraw;
-
 	call CheckIgnore;
 	if (##return == 1) return;
 
+	disabledraw;
 	##ox = x;
 	##oy = y;
 
